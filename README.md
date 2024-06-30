@@ -310,7 +310,8 @@ Edit `/opt/smfc/smfc.conf` and specify your configuration parameters here:
 	fan_level_delay=2  
 	# CPU and HD zones are swapped (bool, default=0).  
 	swapped_zones=0  
-	  
+	# How IMPITOOL raw mode consumes its values hexadecimal or decimal (str, DEC|HEX, default DEC)
+	ipmitool_raw_mode=HEX	  
 	  
 	[CPU zone]  
 	# Fan controller enabled (bool, default=0)  

@@ -143,6 +143,7 @@ class Ipmi:
     fan_mode_delay: float               # Delay time after execution of IPMI set fan mode function
     fan_level_delay: float              # Delay time after execution of IPMI set fan level function
     swapped_zones: bool                 # CPU and HD zones are swapped
+    ipmitool_raw_mode: str              # IPMITOOL raw mode 
 
     # Constant values for IPMI fan modes:
     STANDARD_MODE: int = 0
@@ -158,12 +159,17 @@ class Ipmi:
     SUCCESS: int = 0
     ERROR: int = -1
 
+    # Constat value sfor IPMNITOOL raw mode
+    RAW_MODE_HEX: str = 'HEX'
+    RAW_MODE_DEC: str = 'DEC' 
+
     # Constant values for the configuration parameters.
     CS_IPMI: str = 'Ipmi'
     CV_IPMI_COMMAND: str = 'command'
     CV_IPMI_FAN_MODE_DELAY: str = 'fan_mode_delay'
     CV_IPMI_FAN_LEVEL_DELAY: str = 'fan_level_delay'
     CV_IPMI_SWAPPED_ZONES: str = 'swapped_zones'
+    CV_IPMI_RAW_MODE: str = 'ipmitool_raw_mode'
 
     def __init__(self, log: Log, config: configparser.ConfigParser) -> None:
         """Initialize the Ipmi class with a log class and with a configuration class.
@@ -178,6 +184,7 @@ class Ipmi:
         self.fan_mode_delay = config[self.CS_IPMI].getint(self.CV_IPMI_FAN_MODE_DELAY, fallback=10)
         self.fan_level_delay = config[self.CS_IPMI].getint(self.CV_IPMI_FAN_LEVEL_DELAY, fallback=2)
         self.swapped_zones = config[self.CS_IPMI].getboolean(self.CV_IPMI_SWAPPED_ZONES, fallback=False)
+        self.ipmitool_raw_mode = config[self.CS_IPMI].get(self.CV_IPMI_RAW_MODE, self.RAW_MODE_DEC)
 
         # Validate configuration
         # Check 1: a valid command can be executed successfully.
@@ -198,6 +205,7 @@ class Ipmi:
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_FAN_MODE_DELAY} = {self.fan_mode_delay}')
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_FAN_LEVEL_DELAY} = {self.fan_level_delay}')
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_SWAPPED_ZONES} = {self.swapped_zones}')
+            self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_RAW_MODE} = {self.ipmitool_raw_mode}')
 
     def get_fan_mode(self) -> int:
         """Get the current IPMI fan mode.
@@ -255,10 +263,16 @@ class Ipmi:
         # Validate mode parameter.
         if mode not in {self.STANDARD_MODE, self.FULL_MODE, self.OPTIMAL_MODE, self.HEAVY_IO_MODE}:
             raise ValueError(f'Invalid fan mode value ({mode}).')
+        #  Build IPMITOOL command
+        if self.ipmitool_raw_mode == self.RAW_MODE_DEC:
+           ipmitool_cmd = [self.command, 'raw', '0x30', '0x45', '0x01', str(mode)]
+        elif self.ipmitool_raw_mode == self.RAW_MODE_HEX:
+           ipmitool_cmd = [self.command, 'raw', '0x30', '0x45', '0x01', str(hex(mode))]
+        else:
+           raise ValueError(f'Invalid IPMITOOL raw mode({self.ipmitool_raw_mode}).')
         # Call ipmitool command and set the new IPMI fan mode.
         try:
-            subprocess.run([self.command, 'raw', '0x30', '0x45', '0x01', str(mode)],
-                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(ipmitool_cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError as e:
             raise e
         # Give time for IPMI system/fans to apply changes in the new fan mode.
@@ -280,10 +294,16 @@ class Ipmi:
         # Validate level parameter (must be in the interval [0..100%])
         if level not in range(0, 101):
             raise ValueError(f'Invalid value: level ({level}).')
+        #  Build IPMITOOL command
+        if self.ipmitool_raw_mode == self.RAW_MODE_DEC:
+           ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(zone), str(level) ]
+        elif self.ipmitool_raw_mode == self.RAW_MODE_HEX:
+           ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(hex(zone)), str(hex(level)) ]
+        else:
+           raise ValueError(f'Invalid IPMITOOL raw mode({self.ipmitool_raw_mode}).')
         # Set the new IPMI fan level in the specific zone
         try:
-            subprocess.run([self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(zone), str(level)],
-                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              subprocess.run(ipmitool_cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError as e:
             raise e
         # Give time for IPMI and fans to spin up/down.
