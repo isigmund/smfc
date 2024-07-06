@@ -142,7 +142,7 @@ class Ipmi:
     command: str                        # Full path for ipmitool command.
     fan_mode_delay: float               # Delay time after execution of IPMI set fan mode function
     fan_level_delay: float              # Delay time after execution of IPMI set fan level function
-    swapped_zones: bool                 # CPU and HD zones are swapped
+#####    swapped_zones: bool                 # CPU and HD zones are swapped
     ipmitool_raw_mode: str              # IPMITOOL raw mode 
 
     # Constant values for IPMI fan modes:
@@ -152,8 +152,8 @@ class Ipmi:
     HEAVY_IO_MODE: int = 4
 
     # Constant values for IPMI fan zones:
-    CPU_ZONE: int = 0
-    HD_ZONE: int = 1
+####    CPU_ZONE: int = 0
+####    HD_ZONE: int = 1
 
     # Constant values for the results of IPMI operations:
     SUCCESS: int = 0
@@ -168,7 +168,7 @@ class Ipmi:
     CV_IPMI_COMMAND: str = 'command'
     CV_IPMI_FAN_MODE_DELAY: str = 'fan_mode_delay'
     CV_IPMI_FAN_LEVEL_DELAY: str = 'fan_level_delay'
-    CV_IPMI_SWAPPED_ZONES: str = 'swapped_zones'
+####    CV_IPMI_SWAPPED_ZONES: str = 'swapped_zones'
     CV_IPMI_RAW_MODE: str = 'ipmitool_raw_mode'
 
     def __init__(self, log: Log, config: configparser.ConfigParser) -> None:
@@ -183,7 +183,7 @@ class Ipmi:
         self.command = config[self.CS_IPMI].get(self.CV_IPMI_COMMAND, '/usr/bin/ipmitool')
         self.fan_mode_delay = config[self.CS_IPMI].getint(self.CV_IPMI_FAN_MODE_DELAY, fallback=10)
         self.fan_level_delay = config[self.CS_IPMI].getint(self.CV_IPMI_FAN_LEVEL_DELAY, fallback=2)
-        self.swapped_zones = config[self.CS_IPMI].getboolean(self.CV_IPMI_SWAPPED_ZONES, fallback=False)
+####        self.swapped_zones = config[self.CS_IPMI].getboolean(self.CV_IPMI_SWAPPED_ZONES, fallback=False)
         self.ipmitool_raw_mode = config[self.CS_IPMI].get(self.CV_IPMI_RAW_MODE, self.RAW_MODE_DEC)
 
         # Validate configuration
@@ -204,7 +204,7 @@ class Ipmi:
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_COMMAND} = {self.command}')
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_FAN_MODE_DELAY} = {self.fan_mode_delay}')
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_FAN_LEVEL_DELAY} = {self.fan_level_delay}')
-            self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_SWAPPED_ZONES} = {self.swapped_zones}')
+####            self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_SWAPPED_ZONES} = {self.swapped_zones}')
             self.log.msg(self.log.LOG_CONFIG, f'   {self.CV_IPMI_RAW_MODE} = {self.ipmitool_raw_mode}')
 
     def get_fan_mode(self) -> int:
@@ -278,34 +278,42 @@ class Ipmi:
         # Give time for IPMI system/fans to apply changes in the new fan mode.
         time.sleep(self.fan_mode_delay)
 
-    def set_fan_level(self, zone: int, level: int) -> None:
+    def set_fan_level(self, zones: [int], level: int) -> None:
         """Set the IPMI fan level in a specific zone. Raise an exception in case of invalid parameters.
 
         Args:
-            zone (int): fan zone (CPU_ZONE, HD_ZONE)
+            zones [int]: fan zone id array
             level (int): fan level in % (0-100)
         """
+
+        # TODO validate zone IDs
+
+
         # Validate zone parameter
-        if zone not in {self.CPU_ZONE, self.HD_ZONE}:
-            raise ValueError(f'Invalid value: zone ({zone}).')
-        # Handle swapped zones
-        if self.swapped_zones:
-            zone = 1 - zone
+   ###     if zone not in {self.CPU_ZONE, self.HD_ZONE}:
+   ###         raise ValueError(f'Invalid value: zone ({zone}).')
+   ###     # Handle swapped zones
+   ###     if self.swapped_zones:
+   ###         zone = 1 - zone
         # Validate level parameter (must be in the interval [0..100%])
         if level not in range(0, 101):
             raise ValueError(f'Invalid value: level ({level}).')
-        #  Build IPMITOOL command
-        if self.ipmitool_raw_mode == self.RAW_MODE_DEC:
-           ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(zone), str(level) ]
-        elif self.ipmitool_raw_mode == self.RAW_MODE_HEX:
-           ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(hex(zone)), str(hex(level)) ]
-        else:
-           raise ValueError(f'Invalid IPMITOOL raw mode({self.ipmitool_raw_mode}).')
-        # Set the new IPMI fan level in the specific zone
-        try:
-              subprocess.run(ipmitool_cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except FileNotFoundError as e:
+        # for each fan zone
+        for zone in zones:
+          self.log.msg(self.log.LOG_DEBUG, f'Set speed for IPMI zone {zone} to {level}%')
+          #  Build IPMITOOL command
+          if self.ipmitool_raw_mode == self.RAW_MODE_DEC:
+             ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(zone), str(level) ]
+          elif self.ipmitool_raw_mode == self.RAW_MODE_HEX:
+             ipmitool_cmd = [self.command, 'raw', '0x30', '0x70', '0x66', '0x01', str(hex(zone)), str(hex(level)) ]
+          else:
+             raise ValueError(f'Invalid IPMITOOL raw mode({self.ipmitool_raw_mode}).')
+          # Set the new IPMI fan level in the specific zone
+          try:
+            subprocess.run(ipmitool_cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          except FileNotFoundError as e:
             raise e
+
         # Give time for IPMI and fans to spin up/down.
         time.sleep(self.fan_level_delay)
 
@@ -324,7 +332,7 @@ class FanController:
     # Configuration parameters
     log: Log                # Reference to a Log class instance
     ipmi: Ipmi              # Reference to an Ipmi class instance
-    ipmi_zone: int          # IPMI zone identifier
+    ipmi_zones: [int]       # IPMI zone identifier list
     name: str               # Name of the controller
     count: int              # Number of controlled entities
     temp_calc: int          # Calculate of the temperature (0-min, 1-avg, 2-max)
@@ -348,7 +356,7 @@ class FanController:
     # Function variable for selected temperature calculation method
     get_temp_func: Callable[[], float]
 
-    def __init__(self, log: Log, ipmi: Ipmi, ipmi_zone: int, name: str, count: int, temp_calc: int, steps: int,
+    def __init__(self, log: Log, ipmi: Ipmi, ipmi_zones: [int], name: str, count: int, temp_calc: int, steps: int,
                  sensitivity: float, polling: float, min_temp: float, max_temp: float, min_level: int,
                  max_level: int, hwmon_path: str, hwmon_reserved: set) -> None:
         """Initialize the FanController class. Will raise an exception in case of invalid parameters.
@@ -373,9 +381,10 @@ class FanController:
         # Save and validate configuration parameters.
         self.log = log
         self.ipmi = ipmi
-        self.ipmi_zone = ipmi_zone
-        if self.ipmi_zone not in {Ipmi.CPU_ZONE, Ipmi.HD_ZONE}:
-            raise ValueError('invalid value: ipmi_zone')
+        self.ipmi_zones = ipmi_zones
+        #### TODO validae IPMI zones
+###        if self.ipmi_zone not in {Ipmi.CPU_ZONE, Ipmi.HD_ZONE}:
+##            raise ValueError('invalid value: ipmi_zone')
         self.name = name
         self.count = count
         if self.count <= 0:
@@ -425,7 +434,7 @@ class FanController:
         # Print configuration at DEBUG log level.
         if self.log.log_level >= self.log.LOG_CONFIG:
             self.log.msg(self.log.LOG_CONFIG, f'{self.name} fan controller was initialized with:')
-            self.log.msg(self.log.LOG_CONFIG, f'   ipmi zone = {self.ipmi_zone}')
+            self.log.msg(self.log.LOG_CONFIG, f'   ipmi zones = {self.ipmi_zones}')
             self.log.msg(self.log.LOG_CONFIG, f'   count = {self.count}')
             self.log.msg(self.log.LOG_CONFIG, f'   temp_calc = {self.temp_calc}')
             self.log.msg(self.log.LOG_CONFIG, f'   steps = {self.steps}')
@@ -533,7 +542,7 @@ class FanController:
         Returns:
             int: result (Ipmi.SUCCESS, Ipmi.ERROR)
         """
-        return self.ipmi.set_fan_level(self.ipmi_zone, level)
+        return self.ipmi.set_fan_level(self.ipmi_zones, level)
 
     def callback_func(self) -> None:
         """Call-back function for a child class."""
@@ -606,6 +615,7 @@ class CpuZone(FanController):
     CV_CPU_ZONE_MIN_LEVEL: str = 'min_level'
     CV_CPU_ZONE_MAX_LEVEL: str = 'max_level'
     CV_CPU_ZONE_HWMON_PATH: str = 'hwmon_path'
+    CV_CPU_ZONE_IDS: str = 'ipmi_zone_ids'
 
     def __init__(self, log: Log, ipmi: Ipmi, config: configparser.ConfigParser) -> None:
         """Initialize the CpuZone class and raise exception in case of invalid configuration.
@@ -615,10 +625,17 @@ class CpuZone(FanController):
             ipmi (Ipmi): reference to an Ipmi class instance
             config (configparser.ConfigParser): reference to the configuration (default=None)
         """
-
+        # convert zone ids (comma separated list) to array of int
+        ipmi_zone_ids_str = config[self.CS_CPU_ZONE].get(self.CV_CPU_ZONE_IDS).split(',')
+        try:
+          ipmi_zone_ids = [eval(i) for i in ipmi_zone_ids_str]
+        except:
+           raise ValueError(f'Invalid ipmi_zone_ids {ipmi_zone_ids_str}.')
         # Initialize FanController class.
         super().__init__(
-            log, ipmi, Ipmi.CPU_ZONE, self.CS_CPU_ZONE,
+            log, ipmi,
+            ipmi_zone_ids,
+            self.CS_CPU_ZONE,
             config[self.CS_CPU_ZONE].getint(self.CV_CPU_ZONE_COUNT, fallback=1),
             config[self.CS_CPU_ZONE].getint(self.CV_CPU_ZONE_TEMP_CALC, fallback=FanController.CALC_AVG),
             config[self.CS_CPU_ZONE].getint(self.CV_CPU_ZONE_STEPS, fallback=6),
@@ -712,6 +729,7 @@ class HdZone(FanController):
     CV_HD_ZONE_STANDBY_HD_LIMIT: str = 'standby_hd_limit'
     CV_HD_ZONE_SMARTCTL_PATH: str = 'smartctl_path'
     CV_HD_ZONE_HDDTEMP_PATH: str = 'hddtemp_path'
+    CV_HD_ZONE_IDS: str = 'ipmi_zone_ids'
 
     # Constant for using 'hddtemp'
     STR_HDD_TEMP: str = 'hddtemp'
@@ -743,9 +761,19 @@ class HdZone(FanController):
             raise ValueError(f'Inconsistent count ({count}) and size of hd_names ({len(self.hd_device_names)})')
         # Read the path of the 'hddtemp' command.
         self.hddtemp_path = config[self.CS_HD_ZONE].get(self.CV_HD_ZONE_HDDTEMP_PATH, '/usr/sbin/hddtemp')
+
+        # convert zone ids (comma separated list) to array of int
+        ipmi_zone_ids_str = config[self.CS_HD_ZONE].get(self.CV_HD_ZONE_IDS).split(',')
+        try:
+          ipmi_zone_ids = [eval(i) for i in ipmi_zone_ids_str]
+        except:
+          raise ValueError(f'Invalid ipmi_zone_ids {ipmi_zone_ids_str}.')
+
         # Initialize FanController class.
         super().__init__(
-            log, ipmi, Ipmi.HD_ZONE, self.CS_HD_ZONE, count,
+            log, ipmi,
+            ipmi_zone_ids,
+            self.CS_HD_ZONE, count,
             config[self.CS_HD_ZONE].getint(self.CV_HD_ZONE_TEMP_CALC, fallback=FanController.CALC_AVG),
             config[self.CS_HD_ZONE].getint(self.CV_HD_ZONE_STEPS, fallback=4),
             config[self.CS_HD_ZONE].getfloat(self.CV_HD_ZONE_SENSITIVITY, fallback=2),
@@ -987,8 +1015,9 @@ class Service:
            all fans back to rhw default speed 100%, in order to avoid system overheating while `smfc` is not running."""
         # Configure fans.
         if hasattr(self, "ipmi"):
-            self.ipmi.set_fan_level(Ipmi.CPU_ZONE, 100)
-            self.ipmi.set_fan_level(Ipmi.HD_ZONE, 100)
+            self.ipmi.set_fan_mode(Ipmi.FULL_MODE)
+####            self.ipmi.set_fan_level(Ipmi.CPU_ZONE, 100)
+####            self.ipmi.set_fan_level(Ipmi.HD_ZONE, 100)
             if hasattr(self, "log"):
                 self.log.msg(Log.LOG_INFO, 'smfc terminated: all fans are switched back to the 100% speed.')
 
